@@ -1,0 +1,103 @@
+
+
+-- SQL 2016 Code This will need a change if lower version
+-- Just drops the name table if it exists in this database
+drop table if EXISTS NameLoader
+
+--Creates a table for loading random names, feel free to populate your own
+CREATE TABLE NameLoader (RowCounter INT IDENTITY (1,1), FirstName VARCHAR(100), LastName VARCHAR(100))
+INSERT INTO NameLoader (FirstName, LastName)
+VALUES ('Kris','Wenzel')
+
+INSERT INTO NameLoader (FirstName, LastName)
+VALUES ('Mike','Jones')
+
+INSERT INTO NameLoader (FirstName, LastName)
+VALUES ('Ted','Smith')
+
+INSERT INTO NameLoader (FirstName, LastName)
+VALUES ('Adam','Doe')
+
+INSERT INTO NameLoader (FirstName, LastName)
+VALUES ('Sayak','Singh')
+
+INSERT INTO NameLoader (FirstName, LastName)
+VALUES ('Amy','Johnson')
+
+INSERT INTO NameLoader (FirstName, LastName)
+VALUES ('Ming','Lo')
+
+INSERT INTO NameLoader (FirstName, LastName)
+VALUES ('Janet','Kim')
+
+-- SQL 2016 Code This will need a change if lower version
+-- Just drops the name table if it exists in this database
+DROP TABLE IF EXISTS TestScore
+--CREATING THE TestScore Table for the example I went with INT Varchar(200) and Decimal because they worked
+CREATE TABLE TestScore (StudentID INT NOT NULL PRIMARY KEY, StudentName Varchar(200), Score Decimal (5,2))
+
+-- Variables for the while loop to populate the sample table
+-- Determines how many rows are in the Name table so the random Modulo seed works without running outside the range
+DECLARE @maxloadval  INT = (SELECT COUNT(*) FROM NameLoader)    
+-- Student id for incrementing and populating the table
+DECLARE @studentID INT = 1
+-- Creates a random student name (can recurr as it's random)
+DECLARE @StudentName Varchar(200) = (SELECT firstName from NameLoader WHERE RowCounter = 1)+ ' '+(SELECT LastName FROM NameLoader WHERE RowCounter = 4)
+-- Sets the seed for scores to give a modulo with a decimal
+DECLARE @scoreval decimal(5,2) = 97.76
+-- This is a fun random generator I got from stack overflow at some point in the past
+--http://stackoverflow.com/questions/7878287/generate-random-int-value-from-3-to-6
+--NewID generates random string (for each row in return)
+--checksum takes value of string and creates number
+--modulus (%) divides by that number and returns the remainder (meaning max value is one less than the number you use) - Think Fizzbuzz
+--ABS changes negative results to positive - there are no negative row numbers
+--Then add one to the result to eliminate 0 results- You can't have a row number zero
+
+-- What it does is creates a random number to pull the first and last name from the table
+DECLARE @firstname INT =  (SELECT ABS(CHECKSUM(NEWID())) % @maxloadval)+1
+DECLARE @lastname INT = (SELECT ABS(CHECKSUM(NEWID())) % @maxloadval)+1
+
+-- Begins a while loop if you change the 1000 to any value this will still work
+WHILE @studentID <= 1000
+BEGIN
+-- Adding the values into the TestScoretable
+INSERT INTO TestScore (StudentID, StudentName, Score)
+VALUES(@studentID,  @studentName, (SELECT ABS(CHECKSUM(NEWID())) % @scoreval)+1)
+-- Creates a new number for the name randomization
+SET @firstname	 =  (SELECT ABS(CHECKSUM(NEWID())) % @maxloadval)+1
+SET @Lastname	 =  (SELECT ABS(CHECKSUM(NEWID())) % @maxloadval)+1
+-- SETS the Student Name Variable with the newly updated row numbers for insert
+SET @studentname = (SELECT firstName from NameLoader WHERE RowCounter = @firstname)+ ' '+(SELECT LastName FROM NameLoader WHERE RowCounter = @lastname)
+-- To avoid an infinite loop it increments the StudentID Counter
+SET @studentID = @StudentID + 1
+
+END 
+
+
+
+-- putting the top 25% of records into a temp table for later
+SELECT TOP 25 Percent * INTO #top25PCT FROM TestScore Order by Score DESC
+-- putting the bottom 25% of records into a temp table for later
+SELECT TOP 25 Percent * INTO #Bottom25PCT FROM TestScore Order by Score ASC
+
+SELECT * FROM #top25PCT
+SELECT * FROM #Bottom25PCT
+-- the middle is just leftover so I used not exists sub queries
+SELECT t.* INTO #middle 
+FROM TestScore t 
+where NOT EXISTS(select * from #top25PCT P where P.STUDENTID = T.STUDENTID) and NOT EXISTS(select * from #bottom25PCT P where P.STUDENTID = T.STUDENTID)
+-- pulling out the middle list so you get all three lists
+SELECT * FROM #middle
+
+-- Union the temp tables together and add a rank string
+SELECT *, 'Top25PCT' as ranking FROM #top25PCT
+UNION ALL
+SELECT *, 'Middle50PCT' as ranking  FROM #Middle
+UNION ALL
+SELECT *, 'Bottom25PCT' as ranking  FROM #bottom25pct
+ORDER BY SCORE DESC
+
+-- Clean up of temp tables
+DROP TABLE #top25PCT
+DROP TABLE #bottom25PCT
+DROP TABLE #middle
